@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cppdbg",
+            "request": "launch",
+            "name": "Open a core dump(c/c++)",
+            "program": "<Path to the program here>",
+            "coreDumpPath": "${input:coreFileName}",
+            "cwd": "${workspaceFolder}",
+            "MIMode": "lldb" // or gdb, if you are using gdb
+        }
+    ],
+    "inputs": [
+      {
+        "id": "coreFileName",
+        "type": "promptString",
+        "description": "<PATH-TO-CORE-DUMP>"
+      }
+    ]
+}
