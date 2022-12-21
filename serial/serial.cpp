@@ -137,12 +137,12 @@ void getPixlesFromBMP24(int end, int rows, int cols, char *fileReadBuffer)
 void apply_mirror()
 {
 
-    vector<int> initial(cols, 0);
+    new_image.blues = image.blues;
+    new_image.reds = image.reds;
+    new_image.greens = image.greens;
+
     for (int i = 0; i < rows; i++)
     {
-        new_image.blues.push_back(initial);
-        new_image.greens.push_back(initial);
-        new_image.reds.push_back(initial);
         for (int j = cols - 1; j >= 0; j--)
         {
             for (int k = 0; k < 3; k++)
@@ -168,19 +168,12 @@ void apply_mirror()
 void apply_kernel(vector<vector<int>> kernel)
 {
 
-    vector<int> initial(cols, 0);
-    for (int y_offset = 0; y_offset < 3; y_offset++)
-    {
-        new_image.blues.push_back(initial);
-        new_image.greens.push_back(initial);
-        new_image.reds.push_back(initial);
-    }
+    new_image.reds = image.reds;
+    new_image.greens = image.greens;
+    new_image.blues=image.blues;
     for (int y_offset = 0; y_offset < rows - 3; y_offset++)
     {
-        new_image.blues.push_back(initial);
-        new_image.greens.push_back(initial);
-        new_image.reds.push_back(initial);
-
+   
         for (int x_offset = cols - 1; x_offset >= 3; x_offset--)
         {
             int red_aggregate = 0;
@@ -245,32 +238,9 @@ void apply_kernel(vector<vector<int>> kernel)
 void apply_tilted_square()
 {
 
-    vector<int> initial(cols, 0);
-    for (int i = 0; i < rows; i++)
-    {
-        new_image.blues.push_back(initial);
-        new_image.greens.push_back(initial);
-        new_image.reds.push_back(initial);
-        for (int j = cols - 1; j >= 0; j--)
-        {
-            for (int k = 0; k < 3; k++)
-            {
-                switch (k)
-                {
-                case 0:
-                    new_image.reds[i][j] = image.reds[i][j];
-                    break;
-                case 1:
-                    new_image.greens[i][j] = image.greens[i][j];
-                    break;
-                case 2:
-                    new_image.blues[i][j] = image.blues[i][j];
-                    break;
-                }
-                // cout << i << " " << cols - j << endl;
-            }
-        }
-    }
+    new_image.reds = image.reds;
+    new_image.greens = image.greens;
+    new_image.blues = image.blues;
     for (int j = 0; j < int(cols) / 2; j++)
     {
         for (int k = 0; k < 3; k++)
@@ -369,13 +339,13 @@ int main(int argc, char *argv[])
         return 1;
     }
     getPixlesFromBMP24(bufferSize, rows, cols, fileBuffer);
-    // apply_mirror();
-    // image=new_image;
+    apply_mirror();
+    image=new_image;
     auto start_time = high_resolution_clock::now();
     apply_kernel(kernel_1);
     auto end_time = high_resolution_clock::now();
-    // image = new_image;
-    // apply_tilted_square();
+    image = new_image;
+    apply_tilted_square();
 
     writeOutBmp24(fileBuffer, file_output, bufferSize);
     // write output file

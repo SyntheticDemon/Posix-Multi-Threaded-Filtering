@@ -21,6 +21,32 @@ typedef struct
     vector<vector<int>> blues;
 } I;
 
+struct apply_kernel_args
+{
+    int start;
+    int end;
+    int vertical_thread_count;
+};
+
+struct tilted_h_args
+{
+    int start;
+    int end;
+};
+
+struct mirror_h_args
+{
+    int start;
+    int end;
+};
+
+struct apply_kernel_vertically_args
+{
+    int start;
+    int end;
+    int y_offset;
+};
+
 typedef int LONG;
 typedef unsigned short WORD;
 typedef unsigned int DWORD;
@@ -131,15 +157,12 @@ void getPixlesFromBMP24(int end, int rows, int cols, char *fileReadBuffer)
     }
 }
 
-void apply_mirror(int h_t_c, int v_t_c)
+void *apply_mini_mirror(void *thread_args)
 {
+    struct mirror_h_args *ag = (mirror_h_args *)(thread_args);
 
-    vector<int> initial(cols, 0);
-    for (int i = 0; i < rows; i++)
+    for (int i = ag->start; i <= ag->end; i++)
     {
-        new_image.blues.push_back(initial);
-        new_image.greens.push_back(initial);
-        new_image.reds.push_back(initial);
         for (int j = cols - 1; j >= 0; j--)
         {
             for (int k = 0; k < 3; k++)
@@ -161,25 +184,43 @@ void apply_mirror(int h_t_c, int v_t_c)
         }
     }
 }
-struct apply_kernel_args
+void apply_mirror(int h_t_c, int v_t_c)
 {
-    int start;
-    int end;
-    int vertical_thread_count;
-};
 
-struct tilted_h_args
-{
-    int start;
-    int end;
-};
+    new_image.reds = image.reds;
+    new_image.greens = image.greens;
+    new_image.blues = image.blues;
 
-struct apply_kernel_vertically_args
-{
-    int start;
-    int end;
-    int y_offset;
-};
+    int for_step = int(rows / h_t_c);
+    int base = -1;
+    vector<mirror_h_args *> ags;
+    vector<pthread_t> thread_ids;
+    for (int i = 0; i < h_t_c; i++)
+    {
+        mirror_h_args *ag = new mirror_h_args;
+        ag->start = base + 1;
+        ag->end = base + for_step;
+        base += for_step;
+        if (i == h_t_c - 1)
+        {
+            ag->end += (rows) % h_t_c;
+        }
+
+        ags.push_back(ag);
+        thread_ids.push_back(pthread_t());
+    }
+
+    for (int i = 0; i < h_t_c; i++)
+    {
+        pthread_create(&thread_ids[i], NULL, apply_mini_mirror, ags[i]);
+    }
+
+    for (int i = 0; i < h_t_c; i++)
+    {
+        cout << "Joining horizontal thread" << endl;
+        pthread_join(thread_ids[i], NULL);
+    }
+}
 
 void *apply_kernel_vertically(void *thread_args)
 {
@@ -255,36 +296,47 @@ void *apply_kernel_star(void *thread_args)
     for (int y_offset = start; y_offset <= end; y_offset++)
     {
         int thread_count = vertical_thread_count;
-        int for_step = int(cols / thread_count);
         int base = -1;
-        vector<apply_kernel_vertically_args *> ags;
-        vector<pthread_t> thread_ids;
-
-        for (int i = 0; i < thread_count; i++)
+        if (vertical_thread_count == 0)
         {
             apply_kernel_vertically_args *ag = new apply_kernel_vertically_args;
             ag->start = base + 1;
-            ag->end = base + for_step;
+            ag->end = base + cols;
             ag->y_offset = y_offset;
-            base += for_step;
-            if (i == thread_count - 1)
+            apply_kernel_vertically(ag);
+        }
+        else
+        {
+            int for_step = int(cols / thread_count);
+            vector<apply_kernel_vertically_args *> ags;
+            vector<pthread_t> thread_ids;
+
+            for (int i = 0; i < thread_count; i++)
             {
-                ag->end += cols % thread_count;
+                apply_kernel_vertically_args *ag = new apply_kernel_vertically_args;
+                ag->start = base + 1;
+                ag->end = base + for_step;
+                ag->y_offset = y_offset;
+                base += for_step;
+                if (i == thread_count - 1)
+                {
+                    ag->end += cols % thread_count;
+                }
+
+                ags.push_back(ag);
+                thread_ids.push_back(pthread_t());
             }
 
-            ags.push_back(ag);
-            thread_ids.push_back(pthread_t());
-        }
+            for (int i = 0; i < thread_count; i++)
+            {
+                pthread_create(&thread_ids[i], NULL, apply_kernel_vertically, ags[i]);
+            }
 
-        for (int i = 0; i < thread_count; i++)
-        {
-            pthread_create(&thread_ids[i], NULL, apply_kernel_vertically, ags[i]);
-        }
-
-        for (int i = 0; i < thread_count; i++)
-        {
-            cout << "Joining Vertical thread" << endl;
-            pthread_join(thread_ids[i], NULL);
+            for (int i = 0; i < thread_count; i++)
+            {
+                cout << "Joining Vertical thread" << endl;
+                pthread_join(thread_ids[i], NULL);
+            }
         }
     }
     cout << " Finished  Horizontal" << endl;
@@ -301,9 +353,9 @@ void apply_kernel(vector<vector<int>> kernel, int horizontal_thread_count, int v
     vector<apply_kernel_args *> ags;
     vector<pthread_t> thread_ids;
 
-    new_image.blues = vector<vector<int>>(rows, vector<int>(cols, 0));
-    new_image.reds = vector<vector<int>>(rows, vector<int>(cols, 0));
-    new_image.greens = vector<vector<int>>(rows, vector<int>(cols, 0));
+    new_image.reds = image.reds;
+    new_image.greens = image.greens;
+    new_image.blues = image.blues;
 
     for (int i = 0; i < horizontal_thread_count; i++)
     {
@@ -394,16 +446,13 @@ void *apply_tilted_square_h(void *thread_args)
 void apply_tilted_square(int h_t_c)
 {
 
-    vector<int> initial(cols, 0);
+    new_image.reds = image.reds;
+    new_image.greens = image.greens;
+    new_image.blues = image.blues;
+
     vector<pthread_t> threads;
-    for (int i = 0; i < rows; i++)
-    {
-        new_image.blues.push_back(initial);
-        new_image.greens.push_back(initial);
-        new_image.reds.push_back(initial);
-        tilted(&i);
-    }
-    int for_step = int(int (rows / 2) / h_t_c);
+
+    int for_step = int(int(rows / 2) / h_t_c);
     int base = -1;
     vector<tilted_h_args *> ags;
     vector<pthread_t> thread_ids;
@@ -501,11 +550,11 @@ int main(int argc, char **argv)
         return 1;
     }
     getPixlesFromBMP24(bufferSize, rows, cols, fileBuffer);
-    // apply_mirror(thread_count);
-    // image = new_image;
+    apply_mirror(h_t_c, v_t_c);
+    image = new_image;
     auto start_time = high_resolution_clock::now();
     apply_kernel(kernel_1, h_t_c, v_t_c);
-    // image = new_image;
+    image = new_image;
     apply_tilted_square(h_t_c);
     auto end_time = high_resolution_clock::now();
     writeOutBmp24(fileBuffer, file_output, bufferSize);
