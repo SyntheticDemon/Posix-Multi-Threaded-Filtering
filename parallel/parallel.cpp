@@ -34,6 +34,15 @@ struct tilted_h_args
     int end;
 };
 
+struct input_output_args
+{
+
+    char *fileBuffer;
+    int start;
+    int end;
+    int end_offset;
+};
+
 struct mirror_h_args
 {
     int start;
@@ -114,47 +123,130 @@ vector<vector<int>> kernel_1 = {{-2, -1, -2},
 I image;
 I new_image;
 
-void getPixlesFromBMP24(int end, int rows, int cols, char *fileReadBuffer)
+void *fill_picture(void *fill_picture_args)
 {
-    int count = 1;
-    int extra = cols % 4;
-    // cout << rows << cols;
+
     int row_padded = (cols * 3 + 3) & (~3);
     unsigned char *data = new unsigned char[row_padded];
     unsigned char tmp;
-    vector<int> initial(cols, 0);
+    int count = 1;
+    int extra = cols % 4;
+    struct input_output_args *ag = (input_output_args *)(fill_picture_args);
+    int end_offset = ag->end_offset;
     unsigned char blue, red, green;
-    for (int i = 0; i < rows; i++)
+    for (int i = ag->start; i <= ag->end; i++)
     {
         count += extra;
-        image.blues.push_back(initial);
-        image.greens.push_back(initial);
-        image.reds.push_back(initial);
         for (int j = cols - 1; j >= 0; j--)
         {
             for (int k = 0; k < 3; k++)
             {
+
                 switch (k)
                 {
                 case 0:
-                    red = fileReadBuffer[end - count];
-                    image.reds[i][j] = int(red);
+                    red = ag->fileBuffer[ag->end_offset - count];
                     count++;
+
+                    image.reds[i][j] = int(red);
                     break;
                 case 1:
-                    green = fileReadBuffer[end - count];
-                    image.greens[i][j] = int(green);
+                    green = ag->fileBuffer[ag->end_offset - count];
                     count++;
+
+                    image.greens[i][j] = int(green);
                     break;
                 case 2:
-                    blue = fileReadBuffer[end - count];
-                    image.blues[i][j] = int(blue);
+                    blue = ag->fileBuffer[ag->end_offset - count];
                     count++;
+
+                    image.blues[i][j] = int(blue);
                     break;
                 }
             }
         }
     }
+    // cout << count;
+}
+
+void getPixlesFromBMP24(int end, int rows, int cols, char *fileReadBuffer)
+{
+
+    int count = 1;
+    int extra = cols % 4;
+    int for_step = int(rows / 4);
+    int end_step = int(end / 4);
+    end_step -= (end_step % 12);
+    vector<vector<int>> v1(rows, vector<int>(cols, 0));
+    image.reds = v1;
+    image.greens = v1;
+    image.blues = v1;
+    int base = -1;
+    int end_offset = end + end_step;
+    vector<input_output_args *> ags;
+    vector<pthread_t> thread_ids;
+    for (int i = 0; i < 4; i++)
+    {
+        input_output_args *ag = new input_output_args;
+        ag->end = base + for_step;
+        ag->end_offset = end_offset - end_step;
+        ag->start = base + 1;
+        ag->fileBuffer = fileReadBuffer;
+        // if (i == horizontal_thread_count - 1)
+        // {
+        //     ag->end += (rows % horizontal_thread_count);
+        //     ag->end_offset -= (end % horizontal_thread_count) ;
+        //     ag->end_offset -= (cols % 4) ;
+        // }
+        // cout << ag->start << " " << ag->end << " " << ag->end_offset << " " << endl;
+        ags.push_back(ag);
+        end_offset -= end_step;
+        base += for_step;
+        thread_ids.push_back(pthread_t());
+    }
+    for (int i = 0; i < 4; i++)
+    {
+        pthread_create(&thread_ids[i], NULL, fill_picture, ags[i]);
+    }
+
+    for (int i = 0; i < 4; i++)
+    {
+        // cout << "Joining horizontal thread" << endl;
+        pthread_join(thread_ids[i], NULL);
+    }
+    // unsigned char blue, red, green;
+    // for (int i = 0; i < rows; i++)
+    // {
+    //     count += extra;
+    //     image.blues.push_back(initial);
+    //     image.greens.push_back(initial);
+    //     image.reds.push_back(initial);
+    //     for (int j = cols - 1; j >= 0; j--)
+    //     {
+    //         for (int k = 0; k < 3; k++)
+    //         {
+    //             switch (k)
+    //             {
+    //             case 0:
+    //                 red = fileReadBuffer[end - count];
+    //                 image.reds[i][j] = int(red);
+    //                 // count++;
+    //                 break;
+    //             case 1:
+    //                 green = fileReadBuffer[end - count];
+    //                 image.greens[i][j] = int(green);
+    //                 // count++;
+    //                 break;
+    //             case 2:
+    //                 blue = fileReadBuffer[end - count];
+    //                 image.blues[i][j] = int(blue);
+    //                 // count++;
+    //                 break;
+    //             }
+    //             count++;
+    //         }
+    //     }
+    // }
 }
 
 void *apply_mini_mirror(void *thread_args)
@@ -184,7 +276,7 @@ void *apply_mini_mirror(void *thread_args)
         }
     }
 }
-void apply_mirror(int h_t_c, int v_t_c)
+void *apply_mirror(int h_t_c)
 {
 
     new_image.reds = image.reds;
@@ -217,7 +309,7 @@ void apply_mirror(int h_t_c, int v_t_c)
 
     for (int i = 0; i < h_t_c; i++)
     {
-        cout << "Joining horizontal thread" << endl;
+        // cout << "Joining horizontal thread" << endl;
         pthread_join(thread_ids[i], NULL);
     }
 }
@@ -293,6 +385,7 @@ void *apply_kernel_star(void *thread_args)
     int end = ag->end;
     int vertical_thread_count = ag->vertical_thread_count;
     vector<int> initial(cols, 0);
+    // cout  << " " << end << " " << start << " " << endl;
     for (int y_offset = start; y_offset <= end; y_offset++)
     {
         int thread_count = vertical_thread_count;
@@ -334,12 +427,12 @@ void *apply_kernel_star(void *thread_args)
 
             for (int i = 0; i < thread_count; i++)
             {
-                cout << "Joining Vertical thread" << endl;
+                // cout << "Joining Vertical thread" << endl;
                 pthread_join(thread_ids[i], NULL);
             }
         }
     }
-    cout << " Finished  Horizontal" << endl;
+    // cout << " Finished  Horizontal" << endl;
     pthread_exit(0);
 }
 
@@ -372,115 +465,67 @@ void apply_kernel(vector<vector<int>> kernel, int horizontal_thread_count, int v
         ags.push_back(ag);
         thread_ids.push_back(pthread_t());
     }
+    auto o_start_time = system_clock::now().time_since_epoch();
 
     for (int i = 0; i < horizontal_thread_count; i++)
     {
+        cout << "Thread Created" << endl;
         pthread_create(&thread_ids[i], NULL, apply_kernel_star, ags[i]);
     }
+    auto o_end_time = system_clock::now().time_since_epoch();
+    auto output_duration = duration_cast<microseconds>(o_end_time - o_start_time);
+    cout << "Thread creation Time: " << output_duration.count() << " " << endl;
 
     for (int i = 0; i < horizontal_thread_count; i++)
     {
-        cout << "Joining horizontal thread" << endl;
+        // cout << "Joining horizontal thread" << endl;
         pthread_join(thread_ids[i], NULL);
-    }
-}
-
-void *tilted(void *args)
-{
-    int *l = (int *)(args);
-    for (int j = cols - 1; j >= 0; j--)
-    {
-        for (int k = 0; k < 3; k++)
-        {
-            switch (k)
-            {
-            case 0:
-                new_image.reds[*l][j] = image.reds[*l][j];
-                break;
-            case 1:
-                new_image.greens[*l][j] = image.greens[*l][j];
-                break;
-            case 2:
-                new_image.blues[*l][j] = image.blues[*l][j];
-                break;
-            }
-            // cout << i << " " << cols - j << endl;
-        }
     }
 }
 void *apply_tilted_square_h(void *thread_args)
 {
     struct tilted_h_args *ag = (tilted_h_args *)(thread_args);
-
-    for (int j = ag->start; j <= ag->end; j++)
-        for (int k = 0; k < 3; k++)
-        {
-            switch (k)
-            {
-            case 0:
-                new_image.reds[int(rows) / 2 + j][cols - j] = 255;
-                new_image.reds[j][int(cols) / 2 + j] = 255;
-                new_image.reds[int(rows) / 2 + j][j] = 255;
-                new_image.reds[int(rows) / 2 - j][j] = 255;
-
-                break;
-            case 1:
-                new_image.greens[int(rows) / 2 + j][cols - j] = 255;
-                new_image.greens[j][int(cols) / 2 + j] = 255;
-                new_image.greens[int(rows) / 2 + j][j] = 255;
-                new_image.greens[int(rows) / 2 - j][j] = 255;
-
-                break;
-            case 2:
-                new_image.blues[int(rows) / 2 + j][cols - j] = 255;
-                new_image.blues[j][int(cols) / 2 + j] = 255;
-                new_image.blues[int(rows) / 2 + j][j] = 255;
-                new_image.blues[int(rows) / 2 - j][j] = 255;
-
-                break;
-            }
-            // cout << i << " " << cols - j << endl;
-        }
 }
 
-void apply_tilted_square(int h_t_c)
+void apply_tilted_square()
 {
 
     new_image.reds = image.reds;
     new_image.greens = image.greens;
     new_image.blues = image.blues;
-
-    vector<pthread_t> threads;
-
-    int for_step = int(int(rows / 2) / h_t_c);
-    int base = -1;
-    vector<tilted_h_args *> ags;
-    vector<pthread_t> thread_ids;
-
-    for (int i = 0; i < h_t_c; i++)
+    for (int j = 0; j < int(rows / 2); j++)
     {
-        tilted_h_args *ag = new tilted_h_args;
-        ag->start = base + 1;
-        ag->end = base + for_step;
-        base += for_step;
-        if (i == h_t_c - 1)
+
+        for (int k = 0; k < 3; k++)
         {
-            ag->end += int(rows / 2) % h_t_c;
+            switch (k)
+            {
+            case 0:
+                new_image.reds[int(rows / 2) + j][cols - j] = 255;
+                new_image.reds[j][int(cols / 2) + j] = 255;
+                new_image.reds[int(rows / 2) + j][j] = 255;
+                new_image.reds[int(rows / 2) - j][j] = 255;
+
+                break;
+            case 1:
+                new_image.greens[int(rows / 2) + j][cols - j] = 255;
+                new_image.greens[j][int(cols / 2) + j] = 255;
+                new_image.greens[int(rows / 2) + j][j] = 255;
+                new_image.greens[int(rows / 2) - j][j] = 255;
+
+                break;
+            case 2:
+                new_image.blues[int(rows / 2) + j][cols - j] = 255;
+                new_image.blues[j][int(cols / 2) + j] = 255;
+                new_image.blues[int(rows / 2) + j][j] = 255;
+                new_image.blues[int(rows / 2) - j][j] = 255;
+
+                break;
+
+                // cout << i << " " << cols - j << endl;
+            }
+            // cout << i << " " << cols - j << endl;
         }
-
-        ags.push_back(ag);
-        thread_ids.push_back(pthread_t());
-    }
-
-    for (int i = 0; i < h_t_c; i++)
-    {
-        pthread_create(&thread_ids[i], NULL, apply_tilted_square_h, ags[i]);
-    }
-
-    for (int i = 0; i < h_t_c; i++)
-    {
-        cout << "Joining horizontal thread" << endl;
-        pthread_join(thread_ids[i], NULL);
     }
 }
 
@@ -534,12 +579,28 @@ void writeOutBmp24(char *fileBuffer, const char *nameOfFileToCreate, int bufferS
 int main(int argc, char **argv)
 {
 
+    auto start_time = system_clock::now().time_since_epoch();
     char *fileBuffer;
     int bufferSize;
-    char *file_input = argv[1];
-    char *file_output = argv[2];
-    int h_t_c = atoi(argv[3]);
-    int v_t_c = atoi(argv[4]);
+    char *file_input;
+    char *file_output;
+    int h_t_c;
+    int v_t_c;
+
+    if (argc < 2)
+    {
+        file_input = "../input.bmp";
+        file_output = "output.bmp";
+        h_t_c = 3;
+        v_t_c = 3;
+    }
+    else
+    {
+        file_input = argv[1];
+        file_output = argv[2];
+        h_t_c = atoi(argv[3]);
+        v_t_c = atoi(argv[4]);
+    }
 
     // char *file_input = argv[1];
     // char *file_output = argv[2];
@@ -549,18 +610,43 @@ int main(int argc, char **argv)
         cout << "File read error" << endl;
         return 1;
     }
+    auto i_start_time = system_clock::now().time_since_epoch();
     getPixlesFromBMP24(bufferSize, rows, cols, fileBuffer);
-    apply_mirror(h_t_c, v_t_c);
-    image = new_image;
-    auto start_time = high_resolution_clock::now();
-    apply_kernel(kernel_1, h_t_c, v_t_c);
-    image = new_image;
-    apply_tilted_square(h_t_c);
-    auto end_time = high_resolution_clock::now();
-    writeOutBmp24(fileBuffer, file_output, bufferSize);
+    auto i_end_time = system_clock::now().time_since_epoch();
+    auto input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Input Receivlal Execution Time: " << input_duration.count() << " " << endl;
 
-    auto duration = duration_cast<microseconds>(end_time - start_time);
-    cout << "It took " << duration.count() << " " << endl;
+    i_start_time = system_clock::now().time_since_epoch();
+    apply_mirror(h_t_c);
+    i_end_time = system_clock::now().time_since_epoch();
+    input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Apply Mirror Execution : " << input_duration.count() << " " << endl;
+
+    image = new_image;
+
+    i_start_time = system_clock::now().time_since_epoch();
+    apply_kernel(kernel_1, h_t_c, v_t_c);
+    i_end_time = system_clock::now().time_since_epoch();
+    input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Apply Kernel Execution: " << input_duration.count() << " " << endl;
+
+    image = new_image;
+
+    i_start_time = system_clock::now().time_since_epoch();
+    apply_tilted_square();
+    i_end_time = system_clock::now().time_since_epoch();
+    input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Tilted Square Exucution : " << input_duration.count() << " " << endl;
+    image = new_image;
+    auto o_start_time = system_clock::now().time_since_epoch();
+    writeOutBmp24(fileBuffer, file_output, bufferSize);
+    auto o_end_time = system_clock::now().time_since_epoch();
+    auto output_duration = duration_cast<microseconds>(o_end_time - o_start_time);
+    cout << "Output Dump Execution Time: " << input_duration.count() << " " << endl;
+
     // write output file
+    auto end_time = system_clock::now().time_since_epoch();
+    auto duration = duration_cast<microseconds>(end_time - start_time);
+    cout << "Execution Time: " << duration.count() << " " << endl;
     return 0;
 }

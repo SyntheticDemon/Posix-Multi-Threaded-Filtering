@@ -170,10 +170,10 @@ void apply_kernel(vector<vector<int>> kernel)
 
     new_image.reds = image.reds;
     new_image.greens = image.greens;
-    new_image.blues=image.blues;
+    new_image.blues = image.blues;
     for (int y_offset = 0; y_offset < rows - 3; y_offset++)
     {
-   
+
         for (int x_offset = cols - 1; x_offset >= 3; x_offset--)
         {
             int red_aggregate = 0;
@@ -241,33 +241,36 @@ void apply_tilted_square()
     new_image.reds = image.reds;
     new_image.greens = image.greens;
     new_image.blues = image.blues;
-    for (int j = 0; j < int(cols) / 2; j++)
+    for (int j = 0; j < int (rows / 2 ) ; j++)
     {
+
         for (int k = 0; k < 3; k++)
         {
             switch (k)
             {
             case 0:
-                new_image.reds[int(rows) / 2 + j][cols - j] = 255;
-                new_image.reds[ j][int(cols)/2 + j] = 255;
-                new_image.reds[int(rows) / 2 + j][j] = 255;
-                new_image.reds[int(rows) / 2 - j][j] = 255;
+                new_image.reds[int(rows / 2) + j][cols - j] = 255;
+                new_image.reds[j][int(cols / 2) + j] = 255;
+                new_image.reds[int(rows / 2) + j][j] = 255;
+                new_image.reds[int(rows / 2) - j][j] = 255;
 
                 break;
             case 1:
-                new_image.greens[int(rows) / 2 + j][cols - j] = 255;
-                new_image.greens[j][int(cols)/2 + j] = 255;
-                new_image.greens[int(rows) / 2 + j][j] = 255;
-                new_image.greens[int(rows) / 2 - j][j] = 255;
+                new_image.greens[int(rows / 2) + j][cols - j] = 255;
+                new_image.greens[j][int(cols / 2) + j] = 255;
+                new_image.greens[int(rows / 2) + j][j] = 255;
+                new_image.greens[int(rows / 2) - j][j] = 255;
 
                 break;
             case 2:
-                new_image.blues[int(rows) / 2 + j][cols - j] = 255;
-                new_image.blues[j][int(cols)/2 + j] = 255;
-                new_image.blues[int(rows) / 2 + j][j] = 255;
-                new_image.blues[int(rows) / 2 - j][j] = 255;
+                new_image.blues[int(rows / 2) + j][cols - j] = 255;
+                new_image.blues[j][int(cols / 2) + j] = 255;
+                new_image.blues[int(rows / 2) + j][j] = 255;
+                new_image.blues[int(rows / 2) - j][j] = 255;
 
                 break;
+
+                // cout << i << " " << cols - j << endl;
             }
             // cout << i << " " << cols - j << endl;
         }
@@ -276,7 +279,7 @@ void apply_tilted_square()
 
 void writeOutBmp24(char *fileBuffer, const char *nameOfFileToCreate, int bufferSize)
 {
-    
+
     std::ofstream write(nameOfFileToCreate);
     if (!write)
     {
@@ -325,6 +328,7 @@ void writeOutBmp24(char *fileBuffer, const char *nameOfFileToCreate, int bufferS
 int main(int argc, char *argv[])
 {
 
+    auto start_time = system_clock::now().time_since_epoch();
     char *fileBuffer;
     int bufferSize;
     char *file_input = argv[1];
@@ -338,19 +342,40 @@ int main(int argc, char *argv[])
         cout << "File read error" << endl;
         return 1;
     }
+    auto i_start_time = system_clock::now().time_since_epoch();
     getPixlesFromBMP24(bufferSize, rows, cols, fileBuffer);
-    apply_mirror();
-    image=new_image;
-    auto start_time = high_resolution_clock::now();
-    apply_kernel(kernel_1);
-    auto end_time = high_resolution_clock::now();
-    image = new_image;
-    apply_tilted_square();
+    auto i_end_time = system_clock::now().time_since_epoch();
+    auto input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Input Receivlal Execution Time: " << input_duration.count() << " " << endl;
 
+    i_start_time = system_clock::now().time_since_epoch();
+    apply_mirror();
+    i_end_time = system_clock::now().time_since_epoch();
+    input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Apply Mirror Execution : " << input_duration.count() << " " << endl;
+
+    image = new_image;
+
+    i_start_time = system_clock::now().time_since_epoch();
+    apply_kernel(kernel_1);
+    i_end_time = system_clock::now().time_since_epoch();
+    input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Apply Kernel Execution: " << input_duration.count() << " " << endl;
+
+    image = new_image;
+
+    i_start_time = system_clock::now().time_since_epoch();
+    apply_tilted_square();
+    i_end_time = system_clock::now().time_since_epoch();
+    input_duration = duration_cast<microseconds>(i_end_time - i_start_time);
+    cout << "Tilted Square Execution : " << input_duration.count() << " " << endl;
+
+    auto o_start_time = system_clock::now().time_since_epoch();
     writeOutBmp24(fileBuffer, file_output, bufferSize);
     // write output file
+    auto end_time = system_clock::now().time_since_epoch();
     auto duration = duration_cast<microseconds>(end_time - start_time);
-    cout << "It took " << duration.count() << " " << endl;
+    cout << "Execution Time: " << duration.count() << " " << endl;
 
     return 0;
 }

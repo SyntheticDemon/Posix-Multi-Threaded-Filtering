@@ -1,9 +1,10 @@
 {
     "files.associations": {
-        "*.tcc": "cpp",
-        "string": "cpp",
+        "chrono": "cpp",
+        "iostream": "cpp",
         "ostream": "cpp",
-        "iomanip": "cpp",
-        "chrono": "cpp"
+        "bitset": "cpp",
+        "algorithm": "cpp",
+        "ranges": "cpp"
     }
 }
