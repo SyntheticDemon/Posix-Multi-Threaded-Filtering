@@ -1,2 +1,2 @@
-# Posix-Multi-Threaded-Filtering
-A project made to filter bitmap images using POSIX threads as a computer assignment for the Operating System's Course
+# Multi Threaded Image Filtering
+Filters bitmap images in parallel using  POSIX Threads as a project for the Operating Systems course at  University of Tehran ECE department 
